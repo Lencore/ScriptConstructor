@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Upload, Save, Plus, ArrowUp, ArrowDown, Filter, Target, X } from 'lucide-react';
+import { Upload, Save, Plus, ArrowUp, ArrowDown, Filter, Target, X, Download } from 'lucide-react';
 import { ScriptBlock } from './components/ScriptBlock';
 import { FilterMenu } from './components/FilterMenu';
 import { supabase } from './lib/supabase';
@@ -13,6 +13,23 @@ function App() {
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [isFocusMenuOpen, setIsFocusMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isOldFormat = (text: string): boolean => {
+    return /<[ABC]>(.*?)<\/[ABC]>/gs.test(text);
+  };
+
+  const convertOldFormatToNew = (text: string): string => {
+    const blocks: string[] = [];
+    const regex = /<([ABC])>(.*?)<\/\1>/gs;
+    let match;
+    
+    while ((match = regex.exec(text)) !== null) {
+      const [, type, content] = match;
+      blocks.push(`${content.trim()}\n[["${type}"], [""]]`);
+    }
+    
+    return blocks.join('\n\n');
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -28,19 +45,39 @@ function App() {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
+      let text = e.target?.result as string;
+      
+      // Проверяем формат и конвертируем при необходимости
+      if (isOldFormat(text)) {
+        text = convertOldFormatToNew(text);
+      }
+      
       const blocks: ScriptBlockType[] = [];
       
-      const regex = /<(A|B|C)>(.*?)<\/\1>/gs;
-      let match;
+      // Разделяем текст на блоки по двойным отступам
+      const blockTexts = text.split('\n\n');
       
-      while ((match = regex.exec(text)) !== null) {
-        const [, type, content] = match;
-        blocks.push({
-          type: type as 'A' | 'B' | 'C',
-          content: content.trim(),
-          comments: [],
-        });
+      for (const blockText of blockTexts) {
+        // Ищем комментарий в конце блока
+        const commentMatch = blockText.match(/\[\["([ABC])"\],\s*\["([^"]*)"\]\]\s*$/);
+        
+        if (commentMatch) {
+          const [, type, comment] = commentMatch;
+          const content = blockText.replace(/\[\["([ABC])"\],\s*\["([^"]*)"\]\]\s*$/, '').trim();
+          
+          blocks.push({
+            type: type as 'A' | 'B' | 'C',
+            content: content,
+            comments: comment ? [{ id: crypto.randomUUID(), text: comment }] : [],
+          });
+        } else {
+          // Если комментария нет, создаем блок типа A
+          blocks.push({
+            type: 'A',
+            content: blockText.trim(),
+            comments: [],
+          });
+        }
       }
 
       setScriptData({ blocks });
@@ -169,6 +206,24 @@ function App() {
     }
   };
 
+  const handleDownloadScript = () => {
+    const scriptText = scriptData.blocks.map(block => {
+      const content = block.content;
+      const comment = block.comments[0]?.text || '';
+      return `${content}\n[["${block.type}"], ["${comment}"]]`;
+    }).join('\n\n');
+
+    const blob = new Blob([scriptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'script.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const loadScriptFromUrl = async () => {
     const params = new URLSearchParams(window.location.search);
     const scriptId = params.get('script');
@@ -183,7 +238,21 @@ function App() {
 
         if (error) throw error;
         if (data) {
-          setScriptData(data.data);
+          // Проверяем формат данных и конвертируем при необходимости
+          let scriptData = data.data;
+          if (scriptData.blocks && scriptData.blocks.length > 0) {
+            const firstBlock = scriptData.blocks[0];
+            if (!firstBlock.comments) {
+              // Это старый формат, конвертируем в новый
+              scriptData = {
+                blocks: scriptData.blocks.map((block: ScriptBlockType) => ({
+                  ...block,
+                  comments: []
+                }))
+              };
+            }
+          }
+          setScriptData(scriptData);
           setScriptLoaded(true);
         }
       } catch (error) {
@@ -225,15 +294,13 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-br from-google-gray-light to-google-gray-lighter">
       <div className="max-w-6xl mx-auto p-8">
         <div className="mb-12 text-center">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Video Script Constructor by 3310</h1>
+          <h1 className="section-title text-4xl">Video Script Constructor by 3310</h1>
           <div className="flex flex-col items-center gap-4">
             <div className="flex justify-center gap-4">
-              <label className="inline-flex items-center px-6 py-3 bg-purple-600 
-                              text-white rounded-full cursor-pointer hover:bg-purple-700 
-                              transition-colors shadow-md hover:shadow-lg active:shadow-sm">
+              <label className="btn-primary inline-flex items-center cursor-pointer">
                 <Upload className="mr-2" size={20} />
                 {scriptLoaded ? 'Загрузить другой скрипт' : 'Загрузить скрипт'}
                 <input
@@ -245,134 +312,102 @@ function App() {
                 />
               </label>
               {scriptLoaded && (
-                <button
-                  onClick={handleSaveScript}
-                  className="inline-flex items-center px-6 py-3 bg-green-600 
-                           text-white rounded-full hover:bg-green-700 
-                           transition-colors shadow-md hover:shadow-lg active:shadow-sm"
-                >
-                  <Save className="mr-2" size={20} />
-                  Сохранить и скопировать ссылку
-                </button>
+                <>
+                  <button
+                    onClick={handleSaveScript}
+                    className="btn-primary inline-flex items-center bg-google-green hover:bg-opacity-90"
+                  >
+                    <Save className="mr-2" size={20} />
+                    Сохранить скрипт
+                  </button>
+                  <button
+                    onClick={handleDownloadScript}
+                    className="btn-primary inline-flex items-center bg-google-blue hover:bg-opacity-90"
+                  >
+                    <Download className="mr-2" size={20} />
+                    Скачать скрипт
+                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setIsFilterMenuOpen(!isFilterMenuOpen);
+                        setIsFocusMenuOpen(false);
+                      }}
+                      className="btn-primary bg-google-yellow hover:bg-opacity-90 inline-flex items-center"
+                    >
+                      <Filter className="mr-2" size={20} />
+                      Фильтры
+                    </button>
+                    {isFilterMenuOpen && (
+                      <FilterMenu
+                        title="Фильтры"
+                        filterTypes={filterTypes}
+                        onToggle={handleFilterToggle}
+                        onReset={resetFilter}
+                        onClose={() => setIsFilterMenuOpen(false)}
+                      />
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setIsFocusMenuOpen(!isFocusMenuOpen);
+                        setIsFilterMenuOpen(false);
+                      }}
+                      className="btn-primary bg-google-red hover:bg-opacity-90 inline-flex items-center"
+                    >
+                      <Target className="mr-2" size={20} />
+                      Фокус
+                    </button>
+                    {isFocusMenuOpen && (
+                      <FilterMenu
+                        title="Фокус"
+                        filterTypes={focusTypes}
+                        onToggle={handleFocusToggle}
+                        onReset={resetFocus}
+                        onClose={() => setIsFocusMenuOpen(false)}
+                      />
+                    )}
+                  </div>
+                </>
               )}
             </div>
-
-            {scriptLoaded && (
-              <div className="flex justify-center gap-4">
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setIsFilterMenuOpen(!isFilterMenuOpen);
-                      setIsFocusMenuOpen(false);
-                    }}
-                    className="inline-flex items-center px-4 py-2 bg-gray-100 
-                             text-gray-700 rounded-lg hover:bg-gray-200 
-                             transition-colors"
-                  >
-                    <Filter className="mr-2" size={16} />
-                    Фильтр
-                    {filterTypes.length > 0 && (
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          resetFilter();
-                        }}
-                        className="ml-2 p-1 hover:bg-gray-300 rounded-full cursor-pointer"
-                      >
-                        <X size={14} />
-                      </span>
-                    )}
-                  </button>
-                  <FilterMenu
-                    title="Фильтр"
-                    selectedTypes={filterTypes}
-                    onTypeToggle={handleFilterToggle}
-                    onReset={resetFilter}
-                    isOpen={isFilterMenuOpen}
-                    onClose={() => setIsFilterMenuOpen(false)}
-                  />
-                </div>
-
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setIsFocusMenuOpen(!isFocusMenuOpen);
-                      setIsFilterMenuOpen(false);
-                    }}
-                    className="inline-flex items-center px-4 py-2 bg-gray-100 
-                             text-gray-700 rounded-lg hover:bg-gray-200 
-                             transition-colors"
-                  >
-                    <Target className="mr-2" size={16} />
-                    Фокусировка
-                    {focusTypes.length > 0 && (
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          resetFocus();
-                        }}
-                        className="ml-2 p-1 hover:bg-gray-300 rounded-full cursor-pointer"
-                      >
-                        <X size={14} />
-                      </span>
-                    )}
-                  </button>
-                  <FilterMenu
-                    title="Фокусировка"
-                    selectedTypes={focusTypes}
-                    onTypeToggle={handleFocusToggle}
-                    onReset={resetFocus}
-                    isOpen={isFocusMenuOpen}
-                    onClose={() => setIsFocusMenuOpen(false)}
-                  />
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        <div className="space-y-6">
-          {scriptData.blocks.map((block, index) => (
-            isBlockVisible(block.type) && (
-              <div
-                key={index}
-                className={`transition-opacity duration-300 ${getBlockOpacity(block.type)}`}
+        {scriptLoaded && (
+          <div className="space-y-6">
+            <div className="space-y-8 mt-8">
+              {scriptData.blocks.map((block, index) => (
+                isBlockVisible(block.type) && (
+                  <div key={index} className={getBlockOpacity(block.type)}>
+                    <ScriptBlock
+                      block={block}
+                      index={index}
+                      onUpdate={(content) => handleUpdateBlock(index, content)}
+                      onDelete={() => handleDeleteBlock(index)}
+                      onTypeChange={() => handleTypeChange(index)}
+                      onMove={(direction) => handleMoveBlock(index, direction)}
+                      onAddComment={(comment) => handleAddComment(index, comment)}
+                      onUpdateComment={(commentId, text) => handleUpdateComment(index, commentId, text)}
+                      onDeleteComment={(commentId) => handleDeleteComment(index, commentId)}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < scriptData.blocks.length - 1}
+                    />
+                  </div>
+                )
+              ))}
+            </div>
+
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={handleAddNewBlock}
+                className="btn-primary bg-google-blue hover:bg-opacity-90 inline-flex items-center"
               >
-                <ScriptBlock
-                  block={block}
-                  index={index}
-                  onAddComment={(comment) => handleAddComment(index, comment)}
-                  onUpdateComment={(commentId, text) => handleUpdateComment(index, commentId, text)}
-                  onDeleteComment={(commentId) => handleDeleteComment(index, commentId)}
-                  onUpdateBlock={(content) => handleUpdateBlock(index, content)}
-                  onDeleteBlock={() => handleDeleteBlock(index)}
-                  onTypeChange={() => handleTypeChange(index)}
-                  onMoveUp={() => handleMoveBlock(index, 'up')}
-                  onMoveDown={() => handleMoveBlock(index, 'down')}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < scriptData.blocks.length - 1}
-                />
-              </div>
-            )
-          ))}
-        </div>
-
-        {scriptData.blocks.length === 0 ? (
-          <div className="text-center text-gray-400 mt-16">
-            <p className="text-lg">Загрузите файл скрипта, чтобы начать создание видеоскрипта</p>
-            <p className="text-sm mt-2">Поддерживаются блоки типа A, B и C</p>
-          </div>
-        ) : (
-          <div className="flex justify-center mt-8">
-            <button
-              onClick={handleAddNewBlock}
-              className="inline-flex items-center px-6 py-3 bg-purple-600 
-                       text-white rounded-full hover:bg-purple-700 
-                       transition-colors shadow-md hover:shadow-lg active:shadow-sm"
-            >
-              <Plus className="mr-2" size={20} />
-              Добавить новый блок
-            </button>
+                <Plus className="mr-2" size={20} />
+                Добавить блок
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -1,0 +1,79 @@
+{
+  "color_usage": {
+    "palette": [
+      "#EAF1FF",
+      "#C2DCFF",
+      "#A0C8FF",
+      "#DDEAFE",
+      "#FFFFFF",
+      "#1A1A1A"
+    ],
+    "accents": [
+      "#4285F4",
+      "#34A853",
+      "#FBBC05",
+      "#EA4335"
+    ],
+    "style": "soft gradients and pastel tones",
+    "application": {
+      "backgrounds": "light blue gradients with soft transitions",
+      "accents": "used in interactive elements and highlights",
+      "text": "mostly dark gray or black for contrast on light backgrounds"
+    }
+  },
+  "typography_style": {
+    "font_mood": "modern, clean, approachable",
+    "font_weights": {
+      "titles": "bold",
+      "subtitles": "semi-bold",
+      "body": "regular"
+    },
+    "hierarchy": [
+      "large bold headers",
+      "medium subheaders with slight letter spacing",
+      "smaller body text with generous line-height"
+    ],
+    "alignment": "left-aligned text in most sections, center-aligned in hero banners"
+  },
+  "lighting_and_vibe": "soft, clean, bright, tech-friendly",
+  "subject_placement": {
+    "hero_sections": "centered with floating or overlapping elements",
+    "content_sections": "left text, right image/video (side-by-side layout)",
+    "cards": "floating with soft drop shadows and spacing"
+  },
+  "background_style": {
+    "type": "abstract",
+    "elements": [
+      "blurred shapes",
+      "floating 3D blobs",
+      "linear light gradients"
+    ],
+    "textures": "clean with no noise or grain"
+  },
+  "composition_layout": {
+    "structure": "modular grid system",
+    "style": "symmetrical and balanced",
+    "section_flow": "stacked vertical sections with consistent padding"
+  },
+  "branding_elements": {
+    "use_of_shapes": "rounded rectangles, fluid blobs, geometric overlays",
+    "icons": "minimalistic line icons or filled system-style icons",
+    "highlight effects": "soft glow on hovered or selected elements",
+    "interactive motifs": "rounded buttons with icons and hover animation"
+  },
+  "visual_tone": "minimal, professional, friendly",
+  "post_processing_style": {
+    "contrast": "medium",
+    "saturation": "muted",
+    "shadows": "soft inner and drop shadows",
+    "glow": "light glows on key elements",
+    "noise": "none"
+  },
+  "general_style_tags": [
+    "clean tech",
+    "modern SaaS",
+    "minimal UI",
+    "soft gradient aesthetic",
+    "approachable productivity tool"
+  ]
+}

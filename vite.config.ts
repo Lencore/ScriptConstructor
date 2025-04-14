@@ -17,4 +17,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  server: {
+    headers: {
+      'Content-Type': 'application/javascript'
+    }
+  }
 });
